@@ -4,11 +4,8 @@ mod pdu_session;
 mod nas_decoder;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::{thread, default};
-use std::time::Duration;
-use crossbeam::channel::{select, unbounded, Receiver ,Sender};
-use crossbeam::queue::{SegQueue, ArrayQueue};
+use crossbeam::channel::{unbounded, Receiver ,Sender};
+use crossbeam::queue::SegQueue;
 use crossbeam::scope;
 use msg::{IttiMsg, IttiTrxTag, PlainNAS5GSMessage, NasDecoerSdu};
 use nas_decoder::nas_5gs_decoder;
@@ -17,26 +14,20 @@ use pdu_session::PduSessionMgmt;
 
 fn main() {
     let global_task_queue = Arc::new(SegQueue::<IttiMsg>::new());
-    let mut global_itti_trx_tag_list = Arc::new(RwLock::new(HashMap::<IttiTrxTag,(Sender<IttiMsg>,Receiver<IttiMsg>)>::new()));
-    let mut aaa = Arc::new(RwLock::new(HashMap::<String,String>::new()));
-
-    let global_task_queue_pdu = global_task_queue.clone();
-    let global_task_queue_nas_decoder = global_task_queue.clone();
-
-    let mut global_itti_trx_tag_list_pdu = global_itti_trx_tag_list.clone();
-    let mut global_itti_trx_tag_list_nas_decoder = global_itti_trx_tag_list.clone();
-    
+    let global_itti_trx_tag_list = Arc::new(RwLock::new(HashMap::<IttiTrxTag,(Sender<IttiMsg>,Receiver<IttiMsg>)>::new()));
+    let global_itti_trx_tag_list_pdu = global_itti_trx_tag_list.clone();
+    let global_itti_trx_tag_list_nas_decoder = global_itti_trx_tag_list.clone();
     let global_task_queue_handler = global_task_queue.clone();
     let global_itti_trx_tag_list_handler = global_itti_trx_tag_list.clone();
     scope(|scope| {
 
             scope.spawn(move |_|{
                 //Thread for nas decoder
-                let nas_decoder_trx: (Sender<IttiMsg>, Receiver<IttiMsg>) = unbounded::<(IttiMsg)>();
+                let nas_decoder_trx: (Sender<IttiMsg>, Receiver<IttiMsg>) = unbounded::<IttiMsg>();
                 // global_itti_trx_tag_list_pdu.insert(IttiTrxTag::NasDecoer, nas_decoder_trx.clone()); // 插入
                 {
                     loop {
-                        let mut bb = global_itti_trx_tag_list_pdu.try_write();
+                        let bb = global_itti_trx_tag_list_pdu.try_write();
 
                         match bb {
                             Ok(mut b) => {
@@ -55,28 +46,24 @@ fn main() {
                     match  nas_decoder_trx.1.recv() {
                         Ok(msg) => {
                             match msg {
-                                IttiMsg::Nas5GsDecodePduAndSend2PduMgmt(dataToDecode) => {
-                                    match nas_5gs_decoder(dataToDecode.sdu) {
-                                        Ok(plain_nas5_gsmessage) => {
-                                            println!("{:#?}", plain_nas5_gsmessage);
-                                            let mut bb = global_itti_trx_tag_list_pdu.try_read().unwrap();
-                                            if bb.contains_key(&IttiTrxTag::PduSessionMgmt) {
-                                                match  bb.get(&IttiTrxTag::PduSessionMgmt){
-                                                    Some(pdu_trx) =>{
-                                                        pdu_trx.0.send(IttiMsg::PduSessionMgmtCreatePduSession(PlainNAS5GSMessage { data: plain_nas5_gsmessage.clone() }));
-                                                    },
-                                                    None => {
-                                                        
-                                                    },
-                                                } {
-                                                    
-                                                } 
-                                            }
+                                IttiMsg::Nas5GsDecodePduAndSend2PduMgmt(data_to_decode) => {
+                                    if let Ok(plain_nas5_gsmessage) = nas_5gs_decoder(data_to_decode.sdu) {
+                                        println!("{:#?}", plain_nas5_gsmessage);
+                                        let bb = global_itti_trx_tag_list_pdu.try_read().unwrap();
+                                        if bb.contains_key(&IttiTrxTag::PduSessionMgmt) {
+                                            match  bb.get(&IttiTrxTag::PduSessionMgmt){
+                                                Some(pdu_trx) =>{
+                                                    let _ = pdu_trx.0.send(IttiMsg::PduSessionMgmtCreatePduSession(PlainNAS5GSMessage { data: plain_nas5_gsmessage.clone() }));
+                                                },
+                                                None => {
+                
+                                                },
+                                            } {
+            
+                                            } 
+                                        }
 
 
-                                        },
-                                        Err(_) => {
-                                        },
                                     }
                                 },
                                 IttiMsg::Nas5GsStopThread => {
@@ -95,12 +82,12 @@ fn main() {
             
             scope.spawn(move |_|{
                 //Thread pduSessionMgmt
-                let mut pduSessionMgmt = PduSessionMgmt::default();
-                let pdu_trx = unbounded::<(IttiMsg)>();
+                let pdu_session_mgmt = PduSessionMgmt::default();
+                let pdu_trx = unbounded::<IttiMsg>();
                 
                 {
                 loop {
-                    let mut b = global_itti_trx_tag_list_nas_decoder.try_write();
+                    let b = global_itti_trx_tag_list_nas_decoder.try_write();
                     match b {
                         Ok(mut b) => {
                             b.insert(IttiTrxTag::PduSessionMgmt, pdu_trx.clone());
@@ -113,7 +100,7 @@ fn main() {
                     }
                 }
             }
-                pduSessionMgmt.init_pdu_session_mgmt_task(pdu_trx.clone());
+                pdu_session_mgmt.init_pdu_session_mgmt_task(pdu_trx.clone());
             });
 
             scope.spawn(move |_|{
@@ -121,9 +108,9 @@ fn main() {
                 match  global_task_queue_handler.pop() {
                     Some(msg) => {
                         match msg{
-                            IttiMsg::PduSessionMgmtCreatePduSession(plainNAS5GSMessage) |
-                            IttiMsg::PduSessionMgmtModifiyPduSession(plainNAS5GSMessage)|
-                            IttiMsg::PduSessionMgmtDestoryPduSession(plainNAS5GSMessage)
+                            IttiMsg::PduSessionMgmtCreatePduSession(plain_nas5_gsmessage) |
+                            IttiMsg::PduSessionMgmtModifiyPduSession(plain_nas5_gsmessage)|
+                            IttiMsg::PduSessionMgmtDestoryPduSession(plain_nas5_gsmessage)
                                   => {
                                         loop{
                                             let global_itti_trx_tag_list_handler = global_itti_trx_tag_list_handler.try_read();
@@ -133,7 +120,7 @@ fn main() {
                                                         let pdu_trx =  g.get(&IttiTrxTag::PduSessionMgmt);
                                                         match pdu_trx {
                                                             Some(pdu_trx) => {
-                                                                pdu_trx.0.send(IttiMsg::PduSessionMgmtCreatePduSession(plainNAS5GSMessage.clone()));
+                                                                let _ = pdu_trx.0.send(IttiMsg::PduSessionMgmtCreatePduSession(plain_nas5_gsmessage.clone()));
                                                                 println!("PduSessionMgmt");
                                                             },
                                                             None => {
@@ -150,7 +137,7 @@ fn main() {
                                         }
                                         
                                     },
-                            IttiMsg::Nas5GsDecodePduAndSend2PduMgmt(nasDecoerSdu) =>{
+                            IttiMsg::Nas5GsDecodePduAndSend2PduMgmt(nas_decoer_sdu) =>{
                                         loop{
                                             let global_itti_trx_tag_list_handler = global_itti_trx_tag_list_handler.try_read();
                                             match global_itti_trx_tag_list_handler {
@@ -159,7 +146,7 @@ fn main() {
                                                         let pdu_trx =  g.get(&IttiTrxTag::NasDecoer);
                                                         match pdu_trx {
                                                             Some(pdu_trx) => {
-                                                                pdu_trx.0.send(IttiMsg::Nas5GsDecodePduAndSend2PduMgmt(nasDecoerSdu.clone()));
+                                                                let _ = pdu_trx.0.send(IttiMsg::Nas5GsDecodePduAndSend2PduMgmt(nas_decoer_sdu.clone()));
                                                                 println!("nasDecoerSdu");
                                                             },
                                                             None => {
