@@ -1,5 +1,15 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
+// 首先是一些协议的常量定义,如消息类型、信息元素标识等。
+// 然后定义了一些协议数据结构,如PDUSessionEstablishmentAcceptMsg,它包含了接受消息中的各种信息元素。
+// 接着是一些工具函数,如tlv_decode_pdu_session_establishment_accept用于从字节数据解析出消息结构。
+// 主函数中,传入了一段字节数组,调用tlv_decode函数解析出了PDUSessionEstablishmentAcceptMsg结构,并打印出来。
+// 主要的逻辑是:
+
+// 根据协议,确定消息的组成部分,如discriminator、消息类型、信息元素等。
+// 定义对应的数据结构,包含必要的字段。
+// 解析函数根据协议的格式,逐步解析字节数据,填充到数据结构中。
+// 这样就可以从字节流中解析出结构化的协议消息。
 // 参数容器
 #[derive(Debug, Clone)]
 struct ParamContainer {
@@ -1201,7 +1211,7 @@ impl QOSRules {
                     let mut packetFilterListDeletePF = PacketFilterListDeletePFList {
                         packet_fliter_id: vec![],
                     };
-                    for i in index..(index + numberofpacketfilters as usize) - 1 {
+                    for i in index..(index + numberofpacketfilters as usize) {
                         packetFilterListDeletePF
                             .packet_fliter_id
                             .push(data[index] & 0b00001111);
@@ -1228,10 +1238,11 @@ impl QOSRules {
                     let packet_filter_id = data[index] & 0b00001111;
                     index += 1;
                     let length_packet_filter_contents = data[index];
+                    index += 1;
                     //let mut packetFilterUpdatePF =
                     //PacketFilterListUpdatePFList { packet_filter_direction, packet_filter_id, length_packet_filter_contents, packet_filter_content_list: todo!() };
                     let mut packet_filter_content_list = Vec::<PacketFilterContent>::new();
-                    for i in index..(index + length_packet_filter_contents as usize) - 1 {
+                    for i in index..(index + length_packet_filter_contents as usize) {
                         let filter_content_type = PacketFilterComponentType::from_u8(data[index]);
                         index += 1;
                         let filter_content_value: PacketFilterComponentValue =
@@ -1400,6 +1411,8 @@ impl QOSRules {
 
                 _ => PacketFilterListEnum::PacketFilterNone,
             };
+                 println!("{:#?}",index);
+
             let qosruleprecedence = data[index];
             index += 1;
             let qosflowidentifer = data[index] & 0b00111111;
@@ -1420,6 +1433,8 @@ impl QOSRules {
             };
             qosRulesIEList.push(q_osrules_ie);
         }
+        
+        println!("{:#?}",length);
         QOSRules {
             lengthofqosrulesie: length,
             qosrulesie: qosRulesIEList,
