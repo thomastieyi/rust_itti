@@ -1,9 +1,9 @@
-use crate::msg::{self, PlainNAS5GSMessage};
+use crate::msg;
 
 
 use std::{sync::{Arc, atomic::{AtomicBool, Ordering}}, thread};
 
-use crossbeam::{channel::{Receiver, Sender, unbounded}, queue::SegQueue};
+use crossbeam::channel::{Receiver, Sender, unbounded};
 use msg::IttiMsg;
 
 
@@ -21,20 +21,20 @@ impl PduSessionMgmt {
     }
 
     pub fn init_pdu_session_mgmt_task(mut self,itti_msg_queue: (Sender<IttiMsg>,Receiver<IttiMsg>)) {
-        while true {
+        loop {
             match  itti_msg_queue.1.recv() {
                 Ok(msg) => {
                     match msg {
-                        IttiMsg::PduSessionMgmtCreatePduSession(plainNAS5GSMessage) => {
+                        IttiMsg::PduSessionMgmtCreatePduSession(plain_nas5_gsmessage) => {
                             self.pdu_sessions.push(PduSession::default(self.trx.clone()));
                             let a = &self.pdu_sessions[0];
-                            println!("PduSessionMgmtCreatePduSession {}",plainNAS5GSMessage.data);
+                            println!("PduSessionMgmtCreatePduSession {}",plain_nas5_gsmessage.data);
                             a.run(self.trx.clone());
                         },
-                        IttiMsg::PduSessionMgmtModifiyPduSession(PlainNAS5GSMessage) => {
+                        IttiMsg::PduSessionMgmtModifiyPduSession(plain_nas5_gsmessage) => {
                             
                         },
-                        IttiMsg::PduSessionMgmtDestoryPduSession(PlainNAS5GSMessage) => {
+                        IttiMsg::PduSessionMgmtDestoryPduSession(plain_nas5_gsmessage) => {
 
                             self.pdu_sessions.push(PduSession::default(self.trx.clone()));
                         let a = &self.pdu_sessions[0];
@@ -70,16 +70,16 @@ impl PduSession {
     }
     
     pub fn run(&self, trx: (Sender<i32>,Receiver<i32>)) {
-        let RUNNING = Arc::new(AtomicBool::new(true));
-        let RUNNING1 = RUNNING.clone();
-        let RUNNING2 = RUNNING.clone();
-        let RUNNING3 = RUNNING.clone();
+        let running = Arc::new(AtomicBool::new(true));
+        let running1 = running.clone();
+        let running2 = running.clone();
+        let _running3 = running.clone();
         thread::spawn(move || {
             loop {
                 match trx.1.recv() {
                     Ok(i) => {
                         if i == 1 {
-                            RUNNING1.store(false, Ordering::Relaxed);
+                            running1.store(false, Ordering::Relaxed);
                             println!("destoryed");
 
                         }
@@ -91,7 +91,7 @@ impl PduSession {
             }
         });
         thread::spawn(move || {
-                while RUNNING2.load(Ordering::Relaxed) {
+                while running2.load(Ordering::Relaxed) {
                     // println!("{:#?}",RUNNING2);
                 }
                 println!("destoryed");
