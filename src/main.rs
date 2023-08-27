@@ -2,6 +2,7 @@
 mod msg;
 mod pdu_session;
 mod nas_decoder;
+mod pdu_helper;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use crossbeam::channel::{unbounded, Receiver ,Sender};

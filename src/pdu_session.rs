@@ -1,4 +1,4 @@
-use crate::msg;
+use crate::{msg, pdu_helper::{pdu_helper::{ExtendedProtocolDiscriminator, PDUSessionIdentity, ProcedureTransactionIdentity, SessionMessageType}, pdu_accept::{PDUSessionType, SSCMode, PDUAddress, QOSFlowDescriptions, ExtProtoCfgOpts, DNN}, qos_rules::QOSRules}};
 
 
 use std::{sync::{Arc, atomic::{AtomicBool, Ordering}}, thread};
@@ -54,6 +54,25 @@ impl PduSessionMgmt {
 }
 
 pub struct  PduSession {
+    // pub extendedprotocoldiscriminator: ExtendedProtocolDiscriminator,
+    // pub pdusessionidentity: PDUSessionIdentity,
+    // pub proceduretransactionidentity: ProcedureTransactionIdentity,
+    // pub messagetype: SessionMessageType,
+    // pub pdusessiontype: PDUSessionType,
+    // pub sscmode: SSCMode,
+    // pub qosrules: QOSRules,
+    // // sessionambr: SessionAMBR,
+    // // presence: u16,
+    // // _5gsmcause: _5GSMCause,
+    // pub pduaddress: PDUAddress,
+    // // gprstimer: GPRSTimer,
+    // // snssai: SNSSAI,
+    // // alwaysonpdusessionindication: AlwaysonPDUSessionIndication,
+    // // mappedepsbearercontexts: MappedEPSBearerContexts,
+    // // eapmessage: EAPMessage,
+    // pub qosflowdescriptions: QOSFlowDescriptions,
+    // pub extendedprotocolconfigurationoptions: ExtProtoCfgOpts,
+    // pub dnn: DNN,
     pub pdu_id: i32,
     pub qos_rules: i32,
     pub trx: (Sender<i32>,Receiver<i32>)
